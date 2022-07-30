@@ -1,0 +1,120 @@
+version: '3'
+services:
+  #PHP Service
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: laravel/app
+    container_name: pet_infos_app
+    tty: true
+    environment:
+      SERVICE_NAME: app
+      SERVICE_TAGS: dev
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www:delegated
+      - ./docker_config_files/php/local.ini:/usr/local/etc/php/conf.d/local.ini:delegated
+      - ~/.composer/docker-cache/:/root/.composer:cached
+    networks:
+      - app-network
+
+  #Nginx Service
+  webserver:
+    image: nginx:alpine
+    container_name: pet_infos_webserver
+    tty: true
+    ports:
+      - "8000:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www:delegated
+      - ./docker_config_files/nginx/conf.d/:/etc/nginx/conf.d/:delegated
+    networks:
+      - app-network
+    depends_on:
+      - postgres
+      - app
+
+  #Postgres Service
+  postgres:
+    container_name: pet_infos_postgres
+    image: postgres
+    environment:
+      POSTGRES_DB: pet_infos_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 101010a77
+
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+
+  #PgAdmin
+  pgadmin:
+    container_name: pet_infos_pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@pet.br
+      PGADMIN_DEFAULT_PASSWORD: adminpet77
+    volumes:
+      - pgadmin:/root/.pgadmin
+    ports:
+      - "8080:80"
+    networks:
+      - app-network
+    depends_on:
+      - postgres
+
+  #composer
+  composer:
+    image: composer/composer:2.0.2
+    container_name: pet_infos_composer
+    volumes:
+      - ./:/var/www/
+    working_dir: /var/www/
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+  #npm
+  npm:
+    image: node:13.7
+    container_name: pet_infos_npm
+    volumes:
+      - ./:/var/www/
+    working_dir: /var/www/
+    entrypoint: ['npm']
+
+  #artisan
+  artisan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pet_infos_artisan
+    volumes:
+      - ./:/var/www
+    depends_on:
+      - postgres
+    working_dir: /var/www/
+    entrypoint: ['php', '/var/www/artisan']
+    networks:
+      - app-network
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+
+#Volumes
+volumes:
+  dbdata:
+    driver: local
+  redis:
+    driver: local
+  postgres:
+  pgadmin:
